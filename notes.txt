@@ -1,0 +1,7 @@
+Reddit API Guide - https://www.pythonforbeginners.com/api/how-to-use-reddit-api-in-python, https://www.reddit.com/dev/api/#listings
+
+tensorflow guide - https://www.tensorflow.org/learn
+
+image captioning guide - https://machinelearningmastery.com/develop-a-deep-learning-caption-generation-model-in-python/
+
+
