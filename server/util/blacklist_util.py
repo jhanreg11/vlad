@@ -15,4 +15,5 @@ def clean_blacklist():
 
 def get_blacklist():
   with open('server/util/blacklist.txt', 'r') as file:
-    return file.readlines()
+    lines = file.readlines()
+  return [line[:-2] for line in lines]
