@@ -3,11 +3,12 @@ import re
 
 class ProfanityChecker:
   blacklist = get_blacklist(True)
-  base_words = ['fuck', 'shit', 'bitch', 'cunt', 'dick', 'penis', 'nigger', 'nigga', 'pussy', 'nazi', 'ass', 'gay']
+  base_words = ['fuck', 'shit', 'bitch', 'cunt', 'dick', 'penis', 'nigger', 'nigga', 'pussy', 'nazi', 'ass', 'gay', 'jizz']
   add_ons = ['face', 'head', 'wad', 'er', 'sucker', 'puss', 'lord', 'nut']
 
   def __init__(self):
-    self.blacklist_regex = re.compile('|'.join(self.blacklist), re.IGNORECASE)
+    blacklist_pattern = '|'.join(self.blacklist)
+    self.blacklist_regex = re.compile(self.blacklist_pattern, re.IGNORECASE)
 
     regexes = []
     for word in self.base_words:
@@ -27,13 +28,17 @@ class ProfanityChecker:
             as_list[i] = '[il1\|]'
           elif as_list[i] == 'o':
             as_list[i] = '[o0]'
+          elif as_list[i] == 's':
+            as_list[i] = '[sz2]'
 
         regexes.append('+'.join(as_list))
-    self.deriv_regex = re.compile('(' + '|'.join(regexes) + ')', re.IGNORECASE)
 
-  def has_profanity(self, string):
-    iterator = self.blacklist_regex.finditer(string)
-    deriv_iter = self.deriv_regex.finditer(string)
+    deriv_pattern = '(' + '|'.join(regexes) + ')'
+    self.deriv_regex = re.compile(self.deriv_pattern, re.IGNORECASE)
+
+  def has_profanity(self, text):
+    iterator = self.blacklist_regex.finditer(text)
+    deriv_iter = self.deriv_regex.finditer(text)
     try:
       next(iterator)
       return True
@@ -43,3 +48,7 @@ class ProfanityChecker:
         return True
       except StopIteration:
         return False
+
+  def remove_profanity(self, text):
+    new_text = re.sub(self.blacklist_regex, '', text)
+    return re.sub(self.deriv_regex, '', new_text).strip()
