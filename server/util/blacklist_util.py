@@ -13,7 +13,10 @@ def clean_blacklist():
     for w in sorted_list:
       file.write(w + '\n')
 
-def get_blacklist():
+def get_blacklist(clean=False):
+  if clean:
+    clean_blacklist()
+
   with open('server/util/blacklist.txt', 'r') as file:
     lines = file.readlines()
   return [line[:-2] for line in lines]

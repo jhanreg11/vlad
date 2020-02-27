@@ -2,33 +2,44 @@ from server.util.blacklist_util import get_blacklist
 import re
 
 class ProfanityChecker:
-  blacklist = get_blacklist()
+  blacklist = get_blacklist(True)
+  base_words = ['fuck', 'shit', 'bitch', 'cunt', 'dick', 'penis', 'nigger', 'nigga', 'pussy', 'nazi', 'ass', 'gay']
+  add_ons = ['face', 'head', 'wad', 'er', 'sucker', 'puss', 'lord', 'nut']
 
   def __init__(self):
-    regex_words = []
-    for word in self.blacklist:
-      # allow for repeated characters of at least 1
-      word_list = [c + '+' for c in word]
+    self.blacklist_regex = re.compile('|'.join(self.blacklist), re.IGNORECASE)
 
-      # add poss l33tspeak char replacements
-      for i in range(0, len(word_list), 2):
-        if word_list[i] == 'e':
-          word_list[i] = '[3e]'
-        elif word_list[i] == 'a':
-          word_list[i] = '[a@4]'
-        elif word_list[i] == 'l':
-          word_list[i] = '[1l]'
+    regexes = []
+    for word in self.base_words:
+      for add_on in self.add_ons + ['']:
+        as_list = [c for c in word + add_on]
 
-      regex_words.append(''.join(word_list))
+        for i in range(len(as_list)):
+          if as_list[i] == 'a':
+            as_list[i] = '[4@a]'
+          elif as_list[i] == 'b':
+            as_list[i] = '[8b6]'
+          elif as_list[i] == 'c':
+            as_list[i] = '[(c]'
+          elif as_list[i] == 'e':
+            as_list[i] = '[3e]'
+          elif as_list[i] == 'i' or as_list[i] == 'l':
+            as_list[i] = '[il1\|]'
+          elif as_list[i] == 'o':
+            as_list[i] = '[o0]'
 
-    regex_pattern = '(' + '|'.join(regex_words) + ')'
-
-    self.simple_regex = re.compile(regex_pattern, re.IGNORECASE)
+        regexes.append('+'.join(as_list))
+    self.deriv_regex = re.compile('(' + '|'.join(regexes) + ')', re.IGNORECASE)
 
   def has_profanity(self, string):
-    iterator = self.simple_regex.finditer(string)
+    iterator = self.blacklist_regex.finditer(string)
+    deriv_iter = self.deriv_regex.finditer(string)
     try:
       next(iterator)
       return True
     except StopIteration:
-      return False
+      try:
+        next(deriv_iter)
+        return True
+      except StopIteration:
+        return False
