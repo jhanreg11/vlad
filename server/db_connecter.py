@@ -1,6 +1,7 @@
 import mysql.connector
 import server.config as cfg
-import Pandas as pd
+import pandas as pd
+
 
 class DBConnector:
   """

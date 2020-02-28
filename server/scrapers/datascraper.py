@@ -1,12 +1,8 @@
 import requests
-import mysql.connector
-import os
-import json
 import server.config as cfg
-import Pandas as pd
-
-
-class RDataScraper:
+import server.profanity_filter as pf
+import server.db_connecter as dbc
+class RedditDataScraper:
   """
   Collects, processes, and saves data from a reddit thread.
   add reddit_data={'username', 'password', 'app_name', 'app_secret', 'app_id'} to config.py in order to use.
@@ -17,7 +13,7 @@ class RDataScraper:
   auth_url = 'https://www.reddit.com/'
   api_url = 'https://oauth.reddit.com/'
 
-  def __init__(self, subreddit, database, validate_fn=lambda link: True, caption_process=lambda caption: caption):
+  def __init__(self, subreddit):
     """
     create a data scraper.
     :param subreddit: str, name of subreddit to read from.
@@ -30,23 +26,18 @@ class RDataScraper:
     self.user_agent = f'{cfg.reddit_data["app_name"]} by {cfg.reddit_data["username"]}'
     self.access_token = ""
     self.set_access_token()
-    self.db = database
-    self.validate_fn = validate_fn
-    self.caption_process_fn = caption_process
-    self.vectorizer = CountVectorizer()
+    self.db = dbc.DBConnector()
+    self.profanity_filter = pf.ProfanityFilter()
 
   def run(self):
     """
     collects all listings from current subreddit, cleans them, then writes them to db.
     :return: bool, whether it was successful or not
     """
-    new_listing = self.get_listing()
-    listings = new_listing
-    while new_listing:
-      new_listing = self.get_listing(after=new_listing[-1]['link_id'])
-      listings += new_listing
-
-    self.db.insert_data([self.process(post) for post in listings if self.validate(post)])
+    listing = self.get_listing()
+    while listing:
+      self.db.insert_data([self.process(post) for post in listing if self.validate(post)])
+      listing = self.get_listing(after=listing[-1]['link_id'])
 
   def validate(self, post):
     """
@@ -54,7 +45,7 @@ class RDataScraper:
     :param post: dict, {
     :return:
     """
-    if self.validate_fn(post) and len(post['caption']) > self.min_tokens:
+    if len(post['caption']) > self.min_tokens:
       return True
     else:
       return False
@@ -65,8 +56,9 @@ class RDataScraper:
     :param post: dict, {'link_id', 'media_url', 'caption'}
     :return: dict, processed post
     """
-    post['caption'] = self.caption_process_fn(post['caption'])
+    post['caption'] = self.profanity_filter.remove_profanity(post['caption'])
 
+    return post
 
   def set_access_token(self):
     """
@@ -112,6 +104,8 @@ class RDataScraper:
 
       for link in links:
         url_type = link['data']['url'][-4:]
+        media_url = ''
+
         if url_type == '.jpg' or url_type == '.png' or url_type == 'webp':
           media_url = link['data']['url']
         elif 'secure_media' in link.keys() and 'fallback_url' in link['secure_media']['reddit_video'].keys():
@@ -123,7 +117,7 @@ class RDataScraper:
 
     else:
       print('GET FAILED', response.json())
-      return None
+      return []
 
   def api_health_check(self):
     """

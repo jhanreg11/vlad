@@ -1,5 +1,6 @@
 import re
 
+
 def clean_blacklist():
   raw_words = ""
   with open('server/util/blacklist.txt', 'r') as file:
@@ -13,10 +14,16 @@ def clean_blacklist():
     for w in sorted_list:
       file.write(w + '\n')
 
+
 def get_blacklist(clean=False):
   if clean:
     clean_blacklist()
 
   with open('server/util/blacklist.txt', 'r') as file:
     lines = file.readlines()
-  return [line[:-2] for line in lines]
+  return [line[:-1] for line in lines if line != '\n']
+
+
+if __name__ == '__main__':
+  clean_blacklist()
+  print(get_blacklist())
