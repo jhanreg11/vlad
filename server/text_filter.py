@@ -2,10 +2,10 @@ from server.util.blacklist_util import get_blacklist
 import re
 
 
-class ProfanityFilter:
+class TextFilter:
   blacklist = get_blacklist(True)
-  base_words = ['fuck', 'shit', 'bitch', 'cunt', 'dick', 'penis', 'nigger', 'nigga', 'pussy', 'nazi', 'gay', 'jizz']
-  semi_bad_words = ['ass']
+  bad_words = ['fuck', 'shit', 'bitch', 'cunt', 'dick', 'penis', 'nigger', 'nigga', 'pussy', 'nazi', 'gay', 'jizz']
+  semi_bad_words = ['ass', 'cock']
   add_ons = ['face', 'head', 'wad', 'er', 'sucker', 'puss', 'lord', 'nut', 'hole', 'ass']
 
   def __init__(self):
@@ -13,12 +13,12 @@ class ProfanityFilter:
 
     # sort all lists in descending order by length
     self.blacklist.sort(key=len, reverse=True)
-    self.base_words.sort(key=len, reverse=True)
+    self.bad_words.sort(key=len, reverse=True)
     self.semi_bad_words.sort(key=len, reverse=True)
     self.add_ons.sort(key=len, reverse=True)
 
     # add unforgivable bad words (no surrounding whitespace necessary)
-    for word in self.base_words:
+    for word in self.bad_words:
       for add_on in self.add_ons:
         patterns.append(self.leetify(word + add_on))
       patterns.append(self.leetify(word))
@@ -33,7 +33,13 @@ class ProfanityFilter:
     for word in self.blacklist:
       patterns.append(r'(?<!\S)' + word + r'(?!\S)')
 
-    final_pattern = '(' + '|'.join(patterns) + ')'
+    # add spellcheck for single char words not 'a' or 'i'
+    c = 'a'
+    while c != '{':
+      patterns.append(' ' + c + ' ')
+      c = chr(ord(c) + 1)
+
+    final_pattern = '|'.join(patterns)
     self.regex = re.compile(final_pattern, re.IGNORECASE)
 
   def leetify(self, string):
@@ -62,13 +68,9 @@ class ProfanityFilter:
     return '+'.join(as_list)
 
   def has_profanity(self, text):
-    iterator = self.regex.finditer(text)
-
-    try:
-      next(iterator)
+    if self.regex.search(text):
       return True
-    except StopIteration:
-      return False
+    return False
 
   def remove_profanity(self, text):
-    return re.sub(self.regex, '', text).strip()
+    return self.regex.sub('', text).strip()

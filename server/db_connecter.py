@@ -9,8 +9,8 @@ class DBConnector:
   create dict reddit_data={'username', 'password', 'database']} in config.py to use.
   """
 
-  add_row_query = """INSERT INTO raw_data,
-  (link_id, media_url, caption_1, caption_2) 
+  add_row_query = """INSERT INTO raw_data
+  (link_id, media_url, caption) 
   VALUES (%(link_id)s, %(media_url)s, %(caption)s)"""
 
   create_table_query = """CREATE TABLE IF NOT EXISTS `raw_data` (
@@ -50,14 +50,16 @@ class DBConnector:
     :param data: list | dict, list of dicts or a single dict in form {'link_id', 'media_url', 'caption' }
     :return: None
     """
+    # [print(post['caption']) for post in data if post['caption']]
     try:
       if isinstance(data, list):
         self.cursor.executemany(self.add_row_query, data)
       else:
         self.cursor.execute(self.add_row_query, data)
-      self.cursor.commit()
+      self.connection.commit()
 
     except mysql.connector.Error as e:
+      print(data)
       print(e)
 
   def get_data(self):
@@ -65,4 +67,22 @@ class DBConnector:
     gets all data from raw_data table and returns in pandas dataframe.
     :return: pd.Dataframe
     """
-    return pd.read_sql_table('raw_data', self.connection)
+    data = pd.DataFrame(columns=['fullname', 'media_url', 'caption'])
+    query = 'SELECT * from raw_data'
+    self.cursor.execute(query)
+
+    for (link_id, media_url, caption) in self.cursor:
+      data.loc[-1] = [link_id, media_url, caption]
+      data.index += 1
+    data = data.sort_index()
+
+    return data
+
+  def clear_data(self):
+    """
+    clear all rows from raw_data.
+    :return: None
+    """
+    query = 'DELETE * FROM raw_data'
+    self.cursor.execute(query)
+    self.cursor.commit()

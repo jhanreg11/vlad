@@ -1,11 +1,18 @@
 import requests
+import re
 import server.config as cfg
-import server.profanity_filter as pf
+import server.text_filter as pf
 import server.db_connecter as dbc
+
+
 class RedditDataScraper:
   """
   Collects, processes, and saves data from a reddit thread.
   add reddit_data={'username', 'password', 'app_name', 'app_secret', 'app_id'} to config.py in order to use.
+  class members -
+  max_chars: int, max chars allowed in a caption
+  min_tokes: int, minimum number of tokens allowed in caption
+  auth_url: str,
   """
 
   max_chars = 255
@@ -17,17 +24,18 @@ class RedditDataScraper:
     """
     create a data scraper.
     :param subreddit: str, name of subreddit to read from.
-    :param database: DBConnector, database object
-    :param validate_fn: fn, function with single dict argument of a link to verify if it is valid to process and use.
-    :param caption_process: fn, function with single string argument to perform any extra processing on caption before
-    normal processing, returns new string.
     """
-    self.subreddit = 'r/' + subreddit
-    self.user_agent = f'{cfg.reddit_data["app_name"]} by {cfg.reddit_data["username"]}'
-    self.access_token = ""
-    self.set_access_token()
-    self.db = dbc.DBConnector()
-    self.profanity_filter = pf.ProfanityFilter()
+    try:
+      self.subreddit = 'r/' + subreddit
+      self.user_agent = f'{cfg.reddit_data["app_name"]} by {cfg.reddit_data["username"]}'
+      self.access_token = ""
+      self.set_access_token()
+      self.db = dbc.DBConnector()
+      self.text_filter = pf.TextFilter()
+      self.regex = re.compile(r'[^a-z0-9 ]', re.IGNORECASE)
+    except Exception as e:
+      print(e)
+    del self
 
   def run(self):
     """
@@ -36,7 +44,8 @@ class RedditDataScraper:
     """
     listing = self.get_listing()
     while listing:
-      self.db.insert_data([self.process(post) for post in listing if self.validate(post)])
+      processed_posts = [self.process(post) for post in listing if self.validate(post)]
+      self.db.insert_data([post for post in processed_posts if self.validate(post)])
       listing = self.get_listing(after=listing[-1]['link_id'])
 
   def validate(self, post):
@@ -45,7 +54,7 @@ class RedditDataScraper:
     :param post: dict, {
     :return:
     """
-    if len(post['caption']) > self.min_tokens:
+    if len(post['caption'].split(' ')) > self.min_tokens :
       return True
     else:
       return False
@@ -56,9 +65,26 @@ class RedditDataScraper:
     :param post: dict, {'link_id', 'media_url', 'caption'}
     :return: dict, processed post
     """
-    post['caption'] = self.profanity_filter.remove_profanity(post['caption'])
+    # print('input into final process:', post['caption'])
+    post['caption'] = self.text_filter.remove_profanity(post['caption'])
+    post['caption'] = self.regex.sub('', post['caption']).strip().lower()[:255]
+    # print('final processed string:', post['caption'])
 
+    post['media_url'] = post['media_url'][8:]
     return post
+
+  def generate_tokens(self, strings=None):
+
+    if not strings:
+      strings = list(self.db.get_data()['caption'])
+
+    tokens = []
+    for caption in data:
+      tokens += re.split(' +', caption)
+
+    tokens = set(tokens)
+
+    return tokens
 
   def set_access_token(self):
     """
@@ -94,13 +120,15 @@ class RedditDataScraper:
     elif after:
       params['after'] = after
 
-    print('fetching listing...')
+    # print('fetching listing...')
     response = requests.get(self.api_url + self.subreddit, headers=headers, params=params)
 
     if response.status_code == 200 and response.json()['data']['children']:
       print('successful, listing length:', len(response.json()['data']['children']))
       items = []
-      links = response.json()['data']['children'] if before or after else response.json()['data']['children'][1:]
+      links = response.json()['data']['children'] if before or after else response.json()['data']['children']
+      if not before and not after:
+        links = links[1:]
 
       for link in links:
         url_type = link['data']['url'][-4:]
@@ -112,11 +140,10 @@ class RedditDataScraper:
           media_url = link['data']['secure_media']['reddit_video']['fallback_url']
 
         items.append({'link_id': 't3_' + link['data']['id'], 'media_url': media_url, 'caption': link['data']['title']})
-
       return items
 
     else:
-      print('GET FAILED', response.json())
+      # print('GET FAILED', response.json())
       return []
 
   def api_health_check(self):
